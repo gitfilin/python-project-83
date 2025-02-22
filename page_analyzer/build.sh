@@ -3,4 +3,3 @@
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source $HOME/.local/bin/env
 make install
-pip install gunicorn  # установка глобально через pip вместо uv 
