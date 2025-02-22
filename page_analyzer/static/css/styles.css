@@ -26,3 +26,9 @@ body {
         transform: scale(1.1);
     }
 }
+@media (max-width: 768px) {
+    .love-message {
+        font-size: 2.5rem; /* Уменьшаем текст на мобильных */
+    }
+}
+
