@@ -11,6 +11,7 @@ load_dotenv()  # загружает переменные окружения из
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv(
     'SECRET_KEY')  # получает значение из окружения
+app.debug = True  # добавьте после создания app
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 
