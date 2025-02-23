@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from psycopg2.extras import DictCursor
 from urllib.parse import urlparse
 import validators
+from datetime import datetime
 
 load_dotenv()  # загружает переменные окружения из .env файла
 
@@ -40,11 +41,13 @@ def add_url():
     parsed_url = urlparse(url)
     normalized_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
+    created_at = datetime.now()
+
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                'INSERT INTO urls (name) VALUES (%s) RETURNING id',
-                (normalized_url,)
+                'INSERT INTO urls (name, created_at) VALUES (%s, %s) RETURNING id',
+                (normalized_url, created_at)
             )
             url_id = cur.fetchone()[0]
             conn.commit()
@@ -57,7 +60,14 @@ def add_url():
 def show_url(id):
     with get_connection() as conn:
         with conn.cursor(cursor_factory=DictCursor) as cur:
-            cur.execute('SELECT * FROM urls WHERE id = %s', (id,))
+            cur.execute('''
+                SELECT 
+                    id,
+                    name,
+                    TO_CHAR(created_at, 'YYYY-MM-DD') as created_at
+                FROM urls 
+                WHERE id = %s
+            ''', (id,))
             url = cur.fetchone()
     return render_template('url.html', url=url)
 
@@ -66,7 +76,14 @@ def show_url(id):
 def urls_list():
     with get_connection() as conn:
         with conn.cursor(cursor_factory=DictCursor) as cur:
-            cur.execute('SELECT * FROM urls ORDER BY created_at DESC')
+            cur.execute('''
+                SELECT 
+                    id,
+                    name,
+                    TO_CHAR(created_at, 'YYYY-MM-DD') as created_at
+                FROM urls 
+                ORDER BY created_at DESC
+            ''')
             urls = cur.fetchall()
     return render_template('urls.html', urls=urls)
 
