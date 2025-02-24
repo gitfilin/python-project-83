@@ -1,7 +1,3 @@
--- Удаляем таблицы если они существуют
-DROP TABLE IF EXISTS url_checks;
-DROP TABLE IF EXISTS urls;
-
 -- Создаем таблицу urls
 CREATE TABLE urls (
     id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
