@@ -49,24 +49,19 @@ def index() -> str:
 @app.post('/urls')
 def add_url() -> Any:
     """Добавляет новый URL в базу данных."""
-    # Получаем URL из формы
     url = request.form.get('url')
 
-    # Проверяем что URL не пустой
     if not url:
         flash('URL обязателен', 'danger')
         return redirect(url_for('index'))
 
-    # Проверяем валидность URL и его длину
     if not validators.url(url) or len(url) > 255:
         flash('Некорректный URL', 'danger')
         return redirect(url_for('index'))
 
-    # Нормализуем URL
     parsed_url = urlparse(url)
     normalized_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-    # Сохраняем URL в БД
     with get_connection() as conn:
         with conn.cursor() as cur:
             # Проверка на существование URL
@@ -81,8 +76,8 @@ def add_url() -> Any:
                 'INSERT INTO urls (name, created_at) VALUES (%s, %s) RETURNING id',
                 (normalized_url, created_at)
             )
-            url_id = cur.fetchone()[0]  # Получаем ID добавленной записи
-            conn.commit()  # Подтверждаем транзакцию
+            url_id = cur.fetchone()[0]
+            conn.commit()
 
     flash('Страница успешно добавлена', 'success')
     return redirect(url_for('show_url', id=url_id))
@@ -148,31 +143,26 @@ def check_url(id: int) -> Any:
     """Создает новую проверку для указанного URL."""
     with get_connection() as conn:
         with conn.cursor() as cur:
-            # Проверяем существование URL
             cur.execute('SELECT id, name FROM urls WHERE id = %s', (id,))
             url_record = cur.fetchone()
             if not url_record:
                 flash('URL не найден', 'danger')
                 return redirect(url_for('urls_list'))
 
-            url = url_record[1]  # Получаем имя URL из записи
+            url = url_record[1]
 
             # Выполняем запрос к сайту
             try:
                 response = requests.get(url)
-                response.raise_for_status()  # Проверяем статус ответа
-                status_code = response.status_code  # Получаем код ответа
+                response.raise_for_status()
+                status_code = response.status_code
 
-                # Парсим HTML с помощью BeautifulSoup
                 soup = BeautifulSoup(response.text, 'html.parser')
-
-                # Извлекаем данные
                 h1 = soup.find('h1').get_text() if soup.find('h1') else ''
                 title = soup.title.string if soup.title else ''
                 description = soup.find('meta', attrs={'name': 'description'})
                 description_content = description['content'] if description else ''
 
-                # Создаем новую проверку
                 cur.execute(
                     'INSERT INTO url_checks (url_id, status_code, h1, title, description, created_at) VALUES (%s, %s, %s, %s, %s, %s)',
                     (id, status_code, h1, title, description_content, datetime.now())
