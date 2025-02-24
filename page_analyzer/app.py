@@ -42,19 +42,13 @@ def get_connection():
 
 @app.route('/')
 def index() -> str:
-    """Отображает главную страницу.
-
-    """
+    """Отображает главную страницу."""
     return render_template('index.html')
 
 
 @app.post('/urls')
 def add_url() -> Any:
-    """Добавляет новый URL в базу данных.
-
-    Проверяет валидность URL и сохраняет в базу данных.
-
-    """
+    """Добавляет новый URL в базу данных."""
     # Получаем URL из формы
     url = request.form.get('url')
 
@@ -72,12 +66,17 @@ def add_url() -> Any:
     parsed_url = urlparse(url)
     normalized_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-    # Получаем текущее время для created_at
-    created_at = datetime.now()
-
     # Сохраняем URL в БД
     with get_connection() as conn:
         with conn.cursor() as cur:
+            # Проверка на существование URL
+            cur.execute('SELECT * FROM urls WHERE name = %s',
+                        (normalized_url,))
+            if cur.fetchone():
+                flash('Страница уже существует', 'danger')
+                return redirect(url_for('index'))
+
+            created_at = datetime.now()
             cur.execute(
                 'INSERT INTO urls (name, created_at) VALUES (%s, %s) RETURNING id',
                 (normalized_url, created_at)
@@ -85,7 +84,6 @@ def add_url() -> Any:
             url_id = cur.fetchone()[0]  # Получаем ID добавленной записи
             conn.commit()  # Подтверждаем транзакцию
 
-    # Сообщаем об успехе и перенаправляем на страницу URL
     flash('Страница успешно добавлена', 'success')
     return redirect(url_for('show_url', id=url_id))
 
@@ -188,4 +186,4 @@ def check_url(id: int) -> Any:
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)
