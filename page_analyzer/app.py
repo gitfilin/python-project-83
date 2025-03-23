@@ -2,40 +2,42 @@
 Page Analyzer - приложение для анализа веб-страниц.
 """
 
-# Стандартные библиотеки
-import os
-from typing import Optional, Dict, List, Any
-from datetime import datetime
+# Импорт стандартных библиотек
+import os  # Работа с переменными окружения
+from typing import Any  # Типизация переменных
+from datetime import datetime  # Работа с датой и временем
 
-# Сторонние зависимости
-import psycopg2
-from psycopg2.extras import DictCursor
-from flask import Flask, render_template, request, redirect, url_for, flash
-from dotenv import load_dotenv
-import validators
-from urllib.parse import urlparse
-import requests
-from bs4 import BeautifulSoup
+# Импорт сторонних библиотек
+import psycopg2  # Подключение к PostgreSQL
+from psycopg2.extras import DictCursor  # Представление результатов запроса в виде словаря
+from flask import Flask, render_template, request, redirect, url_for, flash  # Flask-модули
+import validators  # Валидация URL-адресов
+from urllib.parse import urlparse  # Разбор URL на компоненты
+import requests  # Отправка HTTP-запросов
+from bs4 import BeautifulSoup  # Парсинг HTML-контента
+from dotenv import load_dotenv  # Загрузка переменных окружения из .env
 
-# Загружаем переменные окружения из .env файла
+# Загружаем переменные окружения перед их использованием
 load_dotenv()
 
-# Инициализируем приложение Flask
+# Импорт локальных модулей (из проекта)
+from page_analyzer.url_repository import UrlRepository
+
+# Инициализация Flask-приложения
 app = Flask(__name__)
-# Секретный ключ
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')  # Устанавливаем секретный ключ
 app.debug = True  # Включаем режим отладки
 
-# URL для подключения к базе данных из переменных окружения
+# Настройка базы данных
 DATABASE_URL = os.getenv('DATABASE_URL')
+repo = UrlRepository(DATABASE_URL)
 
-
+# Функция для получения соединения с базой данных
 def get_connection():
-    # пытаемся подключиться к базе данных
+    """Создаёт соединение с базой данных."""
     try:
         return psycopg2.connect(DATABASE_URL)
     except Exception as e:
-        # в случае сбоя подключения будет выведено сообщение
         print(f"Ошибка подключения к БД: {e}")
         raise
 
@@ -88,7 +90,6 @@ def show_url(id: int) -> str:
     """Отображает информацию о конкретном URL."""
     with get_connection() as conn:
         with conn.cursor(cursor_factory=DictCursor) as cur:
-            # Получаем информацию об URL
             cur.execute('''
                 SELECT id, name, TO_CHAR(created_at, 'YYYY-MM-DD') as created_at
                 FROM urls WHERE id = %s
@@ -99,7 +100,6 @@ def show_url(id: int) -> str:
                 flash('URL не найден', 'danger')
                 return redirect(url_for('urls_list'))
 
-            # Получаем все проверки для URL
             cur.execute('''
                 SELECT id, status_code, h1, title, description,
                        TO_CHAR(created_at, 'YYYY-MM-DD') as created_at
@@ -143,6 +143,7 @@ def check_url(id: int) -> Any:
     """Создает новую проверку для указанного URL."""
     with get_connection() as conn:
         with conn.cursor() as cur:
+            # Проверяем существование URL
             cur.execute('SELECT id, name FROM urls WHERE id = %s', (id,))
             url_record = cur.fetchone()
             if not url_record:
@@ -157,12 +158,23 @@ def check_url(id: int) -> Any:
                 response.raise_for_status()
                 status_code = response.status_code
 
+                # Парсим HTML с помощью BeautifulSoup
                 soup = BeautifulSoup(response.text, 'html.parser')
                 h1 = soup.find('h1').get_text() if soup.find('h1') else ''
                 title = soup.title.string if soup.title else ''
                 description = soup.find('meta', attrs={'name': 'description'})
                 description_content = description['content'] if description else ''
 
+                # Проверяем, была ли уже проверка для этого URL
+                cur.execute(
+                    'SELECT * FROM url_checks WHERE url_id = %s AND created_at >= NOW() - INTERVAL \'1 DAY\'', (id,))
+                if cur.fetchone():
+                    # Если проверка уже была, перенаправляем на страницу с URL
+                    flash(
+                        'Проверка уже была выполнена для этого URL в течение последнего дня.', 'info')
+                    return redirect(url_for('show_url', id=id))
+
+                # Создаем новую проверку
                 cur.execute(
                     'INSERT INTO url_checks (url_id, status_code, h1, title, description, created_at) VALUES (%s, %s, %s, %s, %s, %s)',
                     (id, status_code, h1, title, description_content, datetime.now())

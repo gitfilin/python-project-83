@@ -1,11 +1,8 @@
 install:
 	uv sync
 
-requirements:
-	cd .. && uv pip compile page_analyzer/pyproject.toml -o requirements.txt
-
 dev:
-	uv run flask --debug --app app run
+	uv run flask --debug --app page_analyzer:app run
 
 lint:
 	uv lint
