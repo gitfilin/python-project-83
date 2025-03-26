@@ -12,6 +12,7 @@ dependencies = [
     "validators>=0.22.0",
     "requests>=2.32.3",
     "beautifulsoup4>=4.13.3",
+    "loguru>=0.7.3",
 ]
 
 [project.optional-dependencies]

@@ -22,8 +22,8 @@
                         {{ url.name }}
                     </a>
                 </td>
-                <td>{{ url.last_check_at }}</td>
-                <td>{{ url.last_check_status }}</td>
+                <td>{{ url.last_check_date|default('') }}</td>
+                <td>{{ url.last_status_code|default('') }}</td>
             </tr>
             {% endfor %}
         </tbody>

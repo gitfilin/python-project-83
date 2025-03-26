@@ -56,123 +56,133 @@ except Exception as e:
     logging.critical(f"❌ Ошибка подключения к базе данных: {e}")
     exit(1)  # Завершаем приложение при критической ошибке подключения к БД
 
+# READ -  Отображает главную страницу
+
 
 @app.route('/')
-def index() -> Response:
+def index():
     """Отображает главную страницу."""
-    return render_template('index.html')  # Загружаем HTML-шаблон
+    raw_url = session.pop('raw_url', '')  # Извлекаем и очищаем сохранённый URL
+    # Загружаем HTML-шаблон
+    return render_template('index.html', raw_url=raw_url)
+
+# CREATE - создание нового URL
 
 
 @app.post('/urls')
-def add_url() -> Any:
+def add_url():
     """Добавляет новый URL в базу данных."""
-    url = request.form.get('url')
+    # Получаем URL из формы и удаляем пробелы в начале и конце
+    raw_url = request.form.get('url', '').strip()
+    # Сохраняем введенный URL в сессии для возврата при ошибке
+    session['raw_url'] = raw_url
 
-    if not url:
+    # Проверяем, что URL не пустой
+    if not raw_url:
         flash('URL обязателен', 'danger')
         return redirect(url_for('index'))
 
-    if not validators.url(url) or len(url) > 255:
+    # Проверяем корректность URL и его длину
+    if not validators.url(raw_url) or len(raw_url) > 255:
         flash('Некорректный URL', 'danger')
         return redirect(url_for('index'))
 
-    parsed_url = urlparse(url)
+    # Разбираем URL на компоненты
+    parsed_url = urlparse(raw_url)
+    # Формируем нормализованный URL (только схема и домен)
     normalized_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-    # Проверка на существование URL
-    url = repo.find(normalized_url)
+    # Ищем URL в базе данных
+    url_data = repo.find_url(normalized_url)
+    # Если URL уже существует, перенаправляем на его страницу
+    if url_data:
+        flash('Страница уже существует', 'success')
+        session.pop('raw_url', None)
+        return redirect(url_for('show_url', id=url_data['id']))
 
-    if not url:
-        created_at = datetime.now()
+    try:
+        # Создаем словарь с данными для сохранения
+        new_url = {'name': normalized_url}
+        # Сохраняем URL в базу данных
+        new_url_id = repo.save(new_url)
+        # Логируем успешное добавление URL
+        logging.info(f"Добавлен новый URL: {normalized_url}")
 
         flash('Страница успешно добавлена', 'success')
-        return redirect(url_for('show_url', id=url))
+        session.pop('raw_url', None)
+        return redirect(url_for('show_url', id=new_url_id))
+    except Exception as e:
+        # Логируем ошибку при сохранении
+        logging.error(f"Ошибка при сохранении URL {normalized_url}: {str(e)}")
+        flash('Произошла ошибка при сохранении URL', 'danger')
+        return redirect(url_for('index'))
 
-    flash('Страница уже существует', 'danger')
-    return redirect(url_for('show_url', id))
-
-
-@app.route('/urls/<int:id>')
-def show_url(id: int) -> str:
-    """Отображает информацию о конкретном URL."""
-    with get_connection() as conn:
-        with conn.cursor(cursor_factory=DictCursor) as cur:
-            cur.execute('''
-                SELECT id, name, TO_CHAR(created_at, 'YYYY-MM-DD') as created_at
-                FROM urls WHERE id = %s
-            ''', (id,))
-            url = cur.fetchone()
-
-            if url is None:
-                flash('URL не найден', 'danger')
-                return redirect(url_for('urls_list'))
-
-            cur.execute('''
-                SELECT id, status_code, h1, title, description,
-                       TO_CHAR(created_at, 'YYYY-MM-DD') as created_at
-                FROM url_checks
-                WHERE url_id = %s
-                ORDER BY id DESC
-            ''', (id,))
-            checks = cur.fetchall()
-
-    return render_template('url.html', url=url, checks=checks)
+# READ - получение списка URL
 
 
-@app.route('/urls')
+@app.route('/urls', methods=['GET'])
 def urls_show() -> str:
     """Отображает список всех добавленных URL."""
-    session.pop('_flashes', None)  # очищаем flash-сообщения
+    session.pop('_flashes', None)  # Очищаем flash-сообщения
     urls = repo.get_content()
     return render_template('urls.html', urls=urls)
 
 
+@app.route('/urls/<int:id>')
+def show_url(id):
+    """Отображает информацию о конкретном URL."""
+    url, checks = repo.get_url_by_id(id)
+
+    if url is None:
+        flash('URL не найден', 'danger')
+        return redirect(url_for('urls_show'))
+
+    return render_template('url.html', url=url, checks=checks)
+
+
+# Создание проверки для URL
+
+
 @app.post('/urls/<int:id>/checks')
-def check_url(id: int) -> Any:
+def check_url(id):
     """Создает новую проверку для указанного URL."""
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            # Проверяем существование URL
-            cur.execute('SELECT id, name FROM urls WHERE id = %s', (id,))
-            url_record = cur.fetchone()
-            if not url_record:
-                flash('URL не найден', 'danger')
-                return redirect(url_for('urls_list'))
+    # Получаем данные URL из базы данных
+    url, _ = repo.get_url_by_id(id)
 
-            url = url_record[1]
+    # Проверяем существование URL
+    if url is None:
+        flash('URL не найден', 'danger')
+        return redirect(url_for('urls_show'))
 
-            # Выполняем запрос к сайту
-            try:
-                response = requests.get(url)
-                response.raise_for_status()
-                status_code = response.status_code
+    # Отправляем GET-запрос к сайту с таймаутом 5 секунд
+    response = requests.get(url['name'], timeout=5)
+    # Проверяем статус ответа
+    response.raise_for_status()
 
-                # Парсим HTML с помощью BeautifulSoup
-                soup = BeautifulSoup(response.text, 'html.parser')
-                h1 = soup.find('h1').get_text() if soup.find('h1') else ''
-                title = soup.title.string if soup.title else ''
-                description = soup.find('meta', attrs={'name': 'description'})
-                description_content = description['content'] if description else ''
+    # Создаем объект BeautifulSoup для парсинга HTML
+    soup = BeautifulSoup(response.text, 'html.parser')
 
-                # Проверяем, была ли уже проверка для этого URL
-                cur.execute(
-                    'SELECT * FROM url_checks WHERE url_id = %s AND created_at >= NOW() - INTERVAL \'1 DAY\'', (id,))
-                if cur.fetchone():
-                    # Если проверка уже была, перенаправляем на страницу с URL
-                    flash(
-                        'Проверка уже была выполнена для этого URL в течение последнего дня.', 'info')
-                    return redirect(url_for('show_url', id=id))
+    # Собираем данные для проверки
+    check_data = {
+        'status_code': response.status_code,
+        # Получаем текст из тега h1, если он есть
+        'h1': soup.h1.text.strip() if soup.h1 else '',
+        # Получаем текст из тега title, если он есть
+        'title': soup.title.text.strip() if soup.title else '',
+        # Получаем содержимое мета-тега description, если он есть
+        'description': soup.find('meta', {'name': 'description'})['content'].strip()
+        if soup.find('meta', {'name': 'description'}) else ''
+    }
 
-                # Создаем новую проверку
-                cur.execute(
-                    'INSERT INTO url_checks (url_id, status_code, h1, title, description, created_at) VALUES (%s, %s, %s, %s, %s, %s)',
-                    (id, status_code, h1, title, description_content, datetime.now())
-                )
-                conn.commit()
-                flash('Страница успешно проверена', 'success')
-            except requests.RequestException:
-                flash('Произошла ошибка при проверке', 'danger')
+    # Сохраняем результаты проверки в базу данных
+    repo.save_check(id, check_data)
+    # Логируем успешную проверку
+    logging.info(
+        f"Успешная проверка URL {url['name']}: код {response.status_code}")
 
+    flash('Страница успешно проверена', 'success')
+
+    # Перенаправляем на страницу URL
     return redirect(url_for('show_url', id=id))
 
 
