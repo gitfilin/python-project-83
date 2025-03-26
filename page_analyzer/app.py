@@ -5,12 +5,11 @@ Page Analyzer - приложение для анализа веб-страниц
 # Стандартные библиотеки
 import os  # Работа с переменными окружения
 import logging  # Логирование событий приложения
-from datetime import datetime  # Работа с датой и временем
 from typing import Any  # Использование аннотаций типов для лучшей читаемости кода
 
 
 # Основной веб-фреймворк
-from flask import Flask, render_template, request, redirect, url_for, flash, Response, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 import validators  # Валидация URL-адресов
 # Разбор URL на компоненты (схема, домен, путь и т. д.)
 from urllib.parse import urlparse
@@ -84,7 +83,7 @@ def add_url():
         flash('URL обязателен', 'danger')  # Показываем ошибку
         # Логируем добавление сообщения
         logging.info("Flash message added: URL обязателен")
-        response = redirect(url_for('index'))  # Создаем ответ
+        response = redirect(url_for('urls_show'))  # Создаем ответ
         response.status_code = 422  # Устанавливаем код статуса
         return response  # Возвращаем ответ
 
@@ -92,7 +91,7 @@ def add_url():
         flash('Некорректный URL', 'danger')  # Показываем ошибку
         # Логируем добавление сообщения
         logging.info("Flash message added: Некорректный URL")
-        response = redirect(url_for('index'))  # Создаем ответ
+        response = redirect(url_for('urls_show'))  # Создаем ответ
         response.status_code = 422  # Устанавливаем код статуса
         return response  # Возвращаем ответ
 
@@ -119,19 +118,21 @@ def add_url():
 @app.route('/urls', methods=['GET'])
 def urls_show() -> str:
     """Отображает список всех добавленных URL."""
-    urls = repo.get_content()
+    urls = repo.get_content()  # Получаем список всех URL из базы данных
+    # Отображаем шаблон с полученными URL
     return render_template('urls.html', urls=urls)
 
 
 @app.route('/urls/<int:id>')
 def show_url(id):
     """Отображает информацию о конкретном URL."""
-    url, checks = repo.get_url_by_id(id)
+    url, checks = repo.get_url_by_id(id)  # Получаем URL и его проверки по ID
 
-    if url is None:
-        flash('URL не найден', 'danger')
-        return redirect(url_for('urls_show'))
+    if url is None:  # Если URL не найден
+        flash('URL не найден', 'danger')  # Показываем сообщение об ошибке
+        return redirect(url_for('urls_show'))  # Перенаправляем на список URL
 
+    # Отображаем шаблон с информацией о URL
     return render_template('url.html', url=url, checks=checks)
 
 
@@ -141,40 +142,49 @@ def show_url(id):
 @app.post('/urls/<int:id>/checks')
 def check_url(id):
     """Создает новую проверку для указанного URL."""
-    url_data = repo.get_url_by_id(id)
-    if not url_data or not url_data[0]:
-        flash('URL не найден', 'danger')
-        return redirect(url_for('urls_show'))
+    url_data = repo.get_url_by_id(id)  # Получаем данные URL по ID
+    if not url_data or not url_data[0]:  # Если URL не найден
+        flash('URL не найден', 'danger')  # Показываем сообщение об ошибке
+        return redirect(url_for('urls_show'))  # Перенаправляем на список URL
 
-    url = url_data[0]
+    url = url_data[0]  # Получаем данные URL из кортежа
 
     try:
+        # Отправляем GET-запрос к URL с таймаутом 5 секунд
         response = requests.get(url['name'], timeout=5)
-        response.raise_for_status()
+        response.raise_for_status()  # Проверяем статус ответа на ошибки
 
+        # Создаем объект BeautifulSoup для парсинга HTML
         soup = BeautifulSoup(response.text, 'html.parser')
 
+        # Создаем словарь с данными для проверки
         check_data = {
-            'status_code': response.status_code,
-            'h1': soup.h1.text.strip() if soup.h1 else '',
-            'title': soup.title.text.strip() if soup.title else '',
+            'status_code': response.status_code,  # Код статуса HTTP
+            'h1': soup.h1.text.strip() if soup.h1 else '',  # Содержимое тега h1
+            'title': soup.title.text.strip() if soup.title else '',  # Содержимое тега title
+            # Содержимое meta description
             'description': soup.find('meta', {'name': 'description'})['content'].strip()
             if soup.find('meta', {'name': 'description'}) else ''
         }
 
-        repo.save_check(id, check_data)
+        repo.save_check(id, check_data)  # Сохраняем результаты проверки
+        # Показываем сообщение об успехе
         flash('Страница успешно проверена', 'success')
 
-    except requests.RequestException:
+    except requests.RequestException:  # Обрабатываем ошибки при запросе
+        # Показываем сообщение об ошибке
         flash('Произошла ошибка при проверке', 'danger')
+        # Создаем данные для неудачной проверки
         check_data = {
-            'status_code': 500,
-            'h1': '',
+            'status_code': 500,  # Код ошибки сервера
+            'h1': '',  # Пустые значения для тегов
             'title': '',
             'description': ''
         }
+        # Сохраняем результаты неудачной проверки
         repo.save_check(id, check_data)
 
+    # Перенаправляем на страницу URL
     return redirect(url_for('show_url', id=id))
 
 
