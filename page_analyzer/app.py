@@ -73,31 +73,37 @@ def index():
 @app.post('/urls')
 def add_url():
     """Добавляет новый URL в базу данных."""
-    raw_url = request.form.get('url', '').strip()
-    session['raw_url'] = raw_url
+    raw_url = request.form.get('url', '').strip()  # Получаем URL из формы
+    session['raw_url'] = raw_url  # Сохраняем URL в сессии
 
-    if not raw_url:
-        flash('URL обязателен', 'danger')
-        return redirect(url_for('index')), 422
+    if not raw_url:  # Проверяем на пустой URL
+        flash('URL обязателен', 'danger')  # Показываем ошибку
+        # Логируем добавление сообщения
+        logging.info("Flash message added: URL обязателен")
+        return redirect(url_for('index')), 422  # Возвращаем на главную
 
-    if not validators.url(raw_url) or len(raw_url) > 255:
-        flash('Некорректный URL', 'danger')
-        return redirect(url_for('index')), 422
+    if not validators.url(raw_url) or len(raw_url) > 255:  # Проверяем валидность URL
+        flash('Некорректный URL', 'danger')  # Показываем ошибку
+        # Логируем добавление сообщения
+        logging.info("Flash message added: Некорректный URL")
+        return redirect(url_for('index')), 422  # Возвращаем на главную
 
-    parsed = urlparse(raw_url)
-    normalized_url = f"{parsed.scheme}://{parsed.netloc}"
-    existing_url = repo.find_url(normalized_url)
+    parsed = urlparse(raw_url)  # Разбираем URL на компоненты
+    normalized_url = f"{parsed.scheme}://{parsed.netloc}"  # Нормализуем URL
 
-    if existing_url:
-        flash('Страница уже существует', 'success')
-        session.pop('raw_url', None)
+    existing_url = repo.find_url(normalized_url)  # Ищем URL в БД
+
+    if existing_url:  # Если URL существует
+        flash('Страница уже существует', 'success')  # Показываем сообщение
+        session.pop('raw_url', None)  # Очищаем сессию
+        # Перенаправляем
         return redirect(url_for('show_url', id=existing_url['id']))
 
-    new_url = {'name': normalized_url}
-    new_url_id = repo.save(new_url)
-    flash('Страница успешно добавлена', 'success')
-    session.pop('raw_url', None)
-    return redirect(url_for('show_url', id=new_url_id))
+    new_url = {'name': normalized_url}  # Создаем данные для сохранения
+    new_url_id = repo.save(new_url)  # Сохраняем URL
+    flash('Страница успешно добавлена', 'success')  # Показываем успех
+    session.pop('raw_url', None)  # Очищаем сессию
+    return redirect(url_for('show_url', id=new_url_id))  # Перенаправляем
 
 # READ - получение списка URL
 
