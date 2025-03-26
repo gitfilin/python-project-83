@@ -40,6 +40,8 @@ app = Flask(__name__)  # Создание экземпляра Flask
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-default-secret-key')
 # Включаем режим отладки, если указано в .env
 app.debug = os.getenv("FLASK_DEBUG", "False").lower() == "true"
+# Настраиваем тип сессии для корректной работы flash-сообщений
+app.config['SESSION_TYPE'] = 'filesystem'
 
 # Настройка базы данных
 # Получаем URL базы данных из переменных окружения
@@ -64,6 +66,8 @@ except Exception as e:
 def index():
     """Отображает главную страницу."""
     raw_url = session.pop('raw_url', '')  # Извлекаем и очищаем сохранённый URL
+    # Логируем текущие flash-сообщения
+    logging.info(f"Current flash messages: {session.get('_flashes', [])}")
     # Загружаем HTML-шаблон
     return render_template('index.html', raw_url=raw_url)
 
