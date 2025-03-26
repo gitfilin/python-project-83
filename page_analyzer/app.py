@@ -84,13 +84,17 @@ def add_url():
         flash('URL обязателен', 'danger')  # Показываем ошибку
         # Логируем добавление сообщения
         logging.info("Flash message added: URL обязателен")
-        return redirect(url_for('index')), 422  # Возвращаем на главную
+        response = redirect(url_for('index'))  # Создаем ответ
+        response.status_code = 422  # Устанавливаем код статуса
+        return response  # Возвращаем ответ
 
     if not validators.url(raw_url) or len(raw_url) > 255:  # Проверяем валидность URL
         flash('Некорректный URL', 'danger')  # Показываем ошибку
         # Логируем добавление сообщения
         logging.info("Flash message added: Некорректный URL")
-        return redirect(url_for('index')), 422  # Возвращаем на главную
+        response = redirect(url_for('index'))  # Создаем ответ
+        response.status_code = 422  # Устанавливаем код статуса
+        return response  # Возвращаем ответ
 
     parsed = urlparse(raw_url)  # Разбираем URL на компоненты
     normalized_url = f"{parsed.scheme}://{parsed.netloc}"  # Нормализуем URL
@@ -115,7 +119,6 @@ def add_url():
 @app.route('/urls', methods=['GET'])
 def urls_show() -> str:
     """Отображает список всех добавленных URL."""
-    session.pop('_flashes', None)  # Очищаем flash-сообщения
     urls = repo.get_content()
     return render_template('urls.html', urls=urls)
 
