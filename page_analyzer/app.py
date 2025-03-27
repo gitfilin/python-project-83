@@ -61,56 +61,52 @@ except Exception as e:
 # READ -  Отображает главную страницу
 
 
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 def index():
     """Отображает главную страницу."""
+    if request.method == 'POST':  # Если это POST-запрос
+        raw_url = request.form.get('url', '').strip()  # Получаем URL из формы
+        session['raw_url'] = raw_url  # Сохраняем URL в сессии
+
+        if not raw_url:  # Проверяем на пустой URL
+            flash('URL обязателен', 'danger')  # Показываем ошибку
+            # Логируем добавление сообщения
+            logging.info("Flash message added: URL обязателен")
+            # Возвращаем шаблон с кодом 422
+            return render_template('index.html', raw_url=raw_url), 422
+
+        # Проверяем валидность URL
+        if not validators.url(raw_url) or len(raw_url) > 255:
+            flash('Некорректный URL', 'danger')  # Показываем ошибку
+            # Логируем добавление сообщения
+            logging.info("Flash message added: Некорректный URL")
+            # Возвращаем шаблон с кодом 422
+            return render_template('index.html', raw_url=raw_url), 422
+
+        parsed = urlparse(raw_url)  # Разбираем URL на компоненты
+        # Нормализуем URL
+        normalized_url = f"{parsed.scheme}://{parsed.netloc}"
+
+        existing_url = repo.find_url(normalized_url)  # Ищем URL в БД
+
+        if existing_url:  # Если URL существует
+            flash('Страница уже существует', 'success')  # Показываем сообщение
+            session.pop('raw_url', None)  # Очищаем сессию
+            # Перенаправляем
+            return redirect(url_for('show_url', id=existing_url['id']))
+
+        new_url = {'name': normalized_url}  # Создаем данные для сохранения
+        new_url_id = repo.save(new_url)  # Сохраняем URL
+        flash('Страница успешно добавлена', 'success')  # Показываем успех
+        session.pop('raw_url', None)  # Очищаем сессию
+        return redirect(url_for('show_url', id=new_url_id))  # Перенаправляем
+
+    # Если это GET-запрос
     raw_url = session.pop('raw_url', '')  # Извлекаем и очищаем сохранённый URL
     # Логируем текущие flash-сообщения
     logging.info(f"Current flash messages: {session.get('_flashes', [])}")
     # Загружаем HTML-шаблон
     return render_template('index.html', raw_url=raw_url)
-
-# CREATE - создание нового URL
-
-
-@app.post('/urls')
-def add_url():
-    """Добавляет новый URL в базу данных."""
-    raw_url = request.form.get('url', '').strip()  # Получаем URL из формы
-    session['raw_url'] = raw_url  # Сохраняем URL в сессии
-
-    if not raw_url:  # Проверяем на пустой URL
-        flash('URL обязателен', 'danger')  # Показываем ошибку
-        # Логируем добавление сообщения
-        logging.info("Flash message added: URL обязателен")
-        response = redirect(url_for('urls_show'))  # Создаем ответ
-        response.status_code = 422  # Устанавливаем код статуса
-        return response  # Возвращаем ответ
-
-    if not validators.url(raw_url) or len(raw_url) > 255:  # Проверяем валидность URL
-        flash('Некорректный URL', 'danger')  # Показываем ошибку
-        # Логируем добавление сообщения
-        logging.info("Flash message added: Некорректный URL")
-        response = redirect(url_for('urls_show'))  # Создаем ответ
-        response.status_code = 422  # Устанавливаем код статуса
-        return response  # Возвращаем ответ
-
-    parsed = urlparse(raw_url)  # Разбираем URL на компоненты
-    normalized_url = f"{parsed.scheme}://{parsed.netloc}"  # Нормализуем URL
-
-    existing_url = repo.find_url(normalized_url)  # Ищем URL в БД
-
-    if existing_url:  # Если URL существует
-        flash('Страница уже существует', 'success')  # Показываем сообщение
-        session.pop('raw_url', None)  # Очищаем сессию
-        # Перенаправляем
-        return redirect(url_for('show_url', id=existing_url['id']))
-
-    new_url = {'name': normalized_url}  # Создаем данные для сохранения
-    new_url_id = repo.save(new_url)  # Сохраняем URL
-    flash('Страница успешно добавлена', 'success')  # Показываем успех
-    session.pop('raw_url', None)  # Очищаем сессию
-    return redirect(url_for('show_url', id=new_url_id))  # Перенаправляем
 
 # READ - получение списка URL
 
