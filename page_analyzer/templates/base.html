@@ -21,12 +21,15 @@
             </div>
         </nav>
     </header>
+        
+    <div class="container-fluid px-0">
+        {% for category, message in get_flashed_messages(with_categories=true) %}
+        <div class="alert alert-{{ category }} rounded-0 mb-0" role="alert">{{ message }}</div>
+        {% endfor %}
+    </div>
 
     <main class="flex-grow-1">
         <div class="container-lg mt-3">
-            {% for category, message in get_flashed_messages(with_categories=true) %}
-            <div class="alert alert-{{ category }}" role="alert">{{ message }}</div>
-            {% endfor %}
             {% block content %}{% endblock %}
         </div>
     </main>

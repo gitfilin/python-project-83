@@ -2,7 +2,6 @@
 
 {% block content %}
 <h1>Сайты</h1>
-{% if urls %}
 <div class="table-responsive">
     <table class="table table-bordered table-hover text-nowrap" data-test="urls">
         <thead>
@@ -14,7 +13,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for url in urls %}
+            {% for url, check in urls_with_checks %}
             <tr>
                 <td>{{ url.id }}</td>
                 <td>
@@ -22,14 +21,11 @@
                         {{ url.name }}
                     </a>
                 </td>
-                <td>{{ url.last_check_date|default('') }}</td>
-                <td>{{ url.last_status_code|default('') }}</td>
+                <td>{{ check.created_at if check else '' }}</td>
+                <td>{{ check.status_code if check else '' }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
-{% else %}
-<p>Пока нет добавленных сайтов</p>
-{% endif %}
 {% endblock %}
