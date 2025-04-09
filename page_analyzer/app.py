@@ -21,30 +21,6 @@ from page_analyzer.url_repository import UrlRepository
 load_dotenv()
 
 
-def configure_logging():
-    """Базовая конфигурация логирования только с выводом в консоль.
-
-    Устанавливает:
-    - Уровень логирования (INFO по умолчанию, DEBUG если FLASK_DEBUG=True)
-    - Формат сообщений: время-уровень-модуль-функция-сообщение
-    """
-    # Определяем уровень логирования
-    log_level = logging.DEBUG if os.getenv(
-        "FLASK_DEBUG", "False").lower() == "true" else logging.INFO
-
-    # Настройка базового логирования
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s - %(levelname)s - %(module)s.%(funcName)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        handlers=[logging.StreamHandler()]  # Только вывод в консоль
-    )
-
-    # Уменьшаем уровень логирования для некоторых библиотек
-    logging.getLogger('werkzeug').setLevel(logging.WARNING)  # Логи Flask
-    logging.getLogger('psycopg2').setLevel(logging.WARNING)  # Логи PostgreSQL
-
-
 # Инициализация Flask-приложения
 app = Flask(__name__)  # Создание основного объекта Flask-приложения
 app.config['SECRET_KEY'] = os.getenv(
@@ -53,32 +29,14 @@ app.debug = os.getenv("FLASK_DEBUG", "False").lower(
 ) == "true"  # Режим отладки из переменных окружения
 app.config['SESSION_TYPE'] = 'filesystem'  # Хранение сессий в файловой системе
 
+
 # Настройка подключения к базе данных
 # Получаем строку подключения из переменных окружения
 DATABASE_URL = os.getenv('DATABASE_URL')
-
-
-# Инициализация логирования
-configure_logging()
-logger = logging.getLogger(__name__)
-
-try:
-    logger.info("Попытка подключения к базе данных")
-    conn = psycopg2.connect(DATABASE_URL)
-    logger.info("Подключение к базе данных успешно установлено")
-
-    logger.info("Создание экземпляра UrlRepository")
-    repo = UrlRepository(conn)
-    logger.info("Репозиторий успешно инициализирован")
-
-except psycopg2.OperationalError as e:
-    logger.critical(f"Ошибка подключения к базе данных: {str(e)}")
-    raise
-except Exception as e:
-    logger.error(
-        f"Неожиданная ошибка при инициализации: {str(e)}", exc_info=True)
-    raise
-
+conn = psycopg2.connect(DATABASE_URL)
+app.logger.info("Получен запрос к главной странице")
+repo = UrlRepository(conn)
+app.logger.info("Получен запрос к главной странице")
 
 @app.route('/')
 def index():
@@ -104,7 +62,7 @@ def add_url():
         Response: Редирект на страницу URL или отображение формы с ошибками
     """
     raw_url = request.form.get(
-        'url', '')  # Получаем URL из формы, удаляем пробелы
+        'url', '')  # Получаем URL из формы
 
     # Валидация URL
     if not raw_url:
