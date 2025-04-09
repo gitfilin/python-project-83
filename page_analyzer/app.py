@@ -1,14 +1,13 @@
 # Стандартные библиотеки
 import os  # Работа с переменными окружения и файловой системой
 import logging  # Логирование событий и ошибок приложения
-from typing import Any  # Аннотации типов для статического анализа кода
+from urllib.parse import urlparse  # Парсинг URL на составные части
 
 # Внешние зависимости
 import psycopg2  # Адаптер для работы с PostgreSQL
 # Веб-фреймворк Flask и его компоненты
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 import validators  # Валидация различных типов данных, включая URL
-from urllib.parse import urlparse  # Парсинг URL на составные части
 import requests  # Отправка HTTP-запросов к веб-страницам
 from bs4 import BeautifulSoup  # Парсинг HTML-контента страниц
 from dotenv import load_dotenv  # Загрузка переменных окружения из .env файла
@@ -22,21 +21,27 @@ load_dotenv()
 
 
 # Инициализация Flask-приложения
-app = Flask(__name__)  # Создание основного объекта Flask-приложения
-app.config['SECRET_KEY'] = os.getenv(
-    'SECRET_KEY')  # Секретный ключ для сессий
-app.debug = os.getenv("FLASK_DEBUG", "False").lower(
-) == "true"  # Режим отладки из переменных окружения
-app.config['SESSION_TYPE'] = 'filesystem'  # Хранение сессий в файловой системе
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config['SESSION_TYPE'] = 'filesystem'
+app.debug = os.getenv("FLASK_DEBUG", "False").lower() == "true"  # Debug режим
+
+# Настройка логирования
+logging.basicConfig(
+    level=logging.DEBUG if app.debug else logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 
-# Настройка подключения к базе данных
-# Получаем строку подключения из переменных окружения
-DATABASE_URL = os.getenv('DATABASE_URL')
-conn = psycopg2.connect(DATABASE_URL)
-app.logger.info("Получен запрос к главной странице")
-repo = UrlRepository(conn)
-app.logger.info("Получен запрос к главной странице")
+# Подключение к БД
+try:
+    conn = psycopg2.connect(os.getenv('DATABASE_URL'))
+    repo = UrlRepository(conn)
+    app.logger.info("Подключение к БД установлено")
+except psycopg2.OperationalError as e:
+    app.logger.error(f"Ошибка подключения к БД: {e}")
+    raise
+
 
 @app.route('/')
 def index():
@@ -179,5 +184,6 @@ def check_url(id: int):
 
 if __name__ == '__main__':
     """Точка входа при запуске приложения напрямую."""
-    configure_logging()
-    app.run(debug=app.debug)  # Запуск Flask-приложения
+    clean_db()
+    app.run()  # Запуск Flask-приложения
+
