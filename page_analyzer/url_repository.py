@@ -2,13 +2,15 @@
 import psycopg2
 # Импортируем DictCursor из psycopg2.extras для работы с результатами запросов как со словарями
 from psycopg2.extras import DictCursor
-
+import logging 
 
 # Создаем класс UrlRepository для работы с URL в базе данных
 class UrlRepository:
     # Инициализируем класс, принимая соединение с базой данных
     def __init__(self, conn):
         self.conn = conn  # Сохраняем соединение с БД как атрибут класса
+        self.logger = logging.getLogger(f"{__name__}.UrlRepository")
+        self.logger.info("Репозиторий инициализирован")
 
     # Метод для получения всех URL из таблицы
     def get_content(self):
