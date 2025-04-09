@@ -60,7 +60,7 @@ def create_database_connection():
         return psycopg2.connect(DATABASE_URL)
     except psycopg2.Error as e:
         logging.critical(f"Не удалось подключиться к базе данных: {e}")
-        raise RuntimeError("Database connection failed")
+        raise RuntimeError("Не удалось подключиться к базе данных")
 
 
 # Инициализация соединения и репозитория
@@ -91,8 +91,7 @@ def add_url():
     Returns:
         Response: Редирект на страницу URL или отображение формы с ошибками
     """
-    raw_url = request.form.get('url', '').strip(
-    )  # Получаем URL из формы, удаляем пробелы
+    raw_url = request.form.get('url', '')  # Получаем URL из формы, удаляем пробелы
 
     # Валидация URL
     if not raw_url:
