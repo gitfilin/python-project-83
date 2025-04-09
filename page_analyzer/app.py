@@ -47,24 +47,8 @@ app.config['SESSION_TYPE'] = 'filesystem'  # Хранение сессий в ф
 DATABASE_URL = os.getenv('DATABASE_URL')
 
 
-def create_database_connection():
-    """Создает и возвращает соединение с PostgreSQL базой данных.
-
-    Returns:
-        psycopg2.connection: Объект соединения с БД
-
-    Raises:
-        RuntimeError: Если подключение не удалось
-    """
-    try:
-        return psycopg2.connect(DATABASE_URL)
-    except psycopg2.Error as e:
-        logging.critical(f"Не удалось подключиться к базе данных: {e}")
-        raise RuntimeError("Не удалось подключиться к базе данных")
-
-
+conn = psycopg2.connect(DATABASE_URL)
 # Инициализация соединения и репозитория
-conn = create_database_connection()
 repo = UrlRepository(conn)  # Создаем экземпляр репозитория для работы с URL
 
 
@@ -91,7 +75,8 @@ def add_url():
     Returns:
         Response: Редирект на страницу URL или отображение формы с ошибками
     """
-    raw_url = request.form.get('url', '')  # Получаем URL из формы, удаляем пробелы
+    raw_url = request.form.get(
+        'url', '')  # Получаем URL из формы, удаляем пробелы
 
     # Валидация URL
     if not raw_url:
