@@ -37,7 +37,7 @@ def configure_logging():
 # Инициализация Flask-приложения
 app = Flask(__name__)  # Создание основного объекта Flask-приложения
 app.config['SECRET_KEY'] = os.getenv(
-    'SECRET_KEY', 'your-default-secret-key')  # Секретный ключ для сессий
+    'SECRET_KEY')  # Секретный ключ для сессий
 app.debug = os.getenv("FLASK_DEBUG", "False").lower(
 ) == "true"  # Режим отладки из переменных окружения
 app.config['SESSION_TYPE'] = 'filesystem'  # Хранение сессий в файловой системе
