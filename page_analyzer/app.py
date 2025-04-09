@@ -67,7 +67,7 @@ def add_url():
         Response: Редирект на страницу URL или отображение формы с ошибками
     """
     raw_url = request.form.get(
-        'url', '')  # Получаем URL из формы
+        'url')  # Получаем URL из формы
 
     # Валидация URL
     if not raw_url:
@@ -183,7 +183,4 @@ def check_url(id: int):
 
 
 if __name__ == '__main__':
-    """Точка входа при запуске приложения напрямую."""
-    clean_db()
-    app.run()  # Запуск Flask-приложения
-
+    app.run(debug=False)

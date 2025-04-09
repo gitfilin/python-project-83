@@ -7,7 +7,7 @@
     <p class="lead">Бесплатно проверяйте сайты на SEO-пригодность</p>
     <form action="/urls " method="post" class="d-flex justify-content-center">
       <label for="text" class="visually-hidden">Url для проверки</label>
-      <input type="text" name="url" placeholder="https://www.example.com" value="" class="form-control form-control-lg"
+      <input type="text" name="url" placeholder="https://www.example.com" value="{{ raw_url or '' }}" class="form-control form-control-lg"
         required>
       <input type="submit" class="btn btn-primary  btn-lg ms-3 px-5 text-uppercase mx-3" value="Проверить">
     </form>
