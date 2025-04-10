@@ -21,8 +21,7 @@ class UrlRepository:
                 FROM urls
                 ORDER BY id DESC
             """)
-            # Преобразуем результат в список словарей и возвращаем
-            self.conn.close()
+            # Преобразуем результат в список словарей и возвращаем        
             return [dict(row) for row in cur]
 
     # Метод для поиска URL в базе данных

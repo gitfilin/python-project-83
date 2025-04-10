@@ -33,47 +33,15 @@ logging.basicConfig(
 )
 
 
-# Подключение к БД
-try:
-    # Создаем соединение внутри контекстного менеджера
-    with psycopg2.connect(os.getenv('DATABASE_URL')) as conn:
-        repo = UrlRepository(conn)
-        urls = repo.get_content()
-except psycopg2.OperationalError as e:
-    app.logger.error(f"Ошибка подключения к БД: {e}")
-    raise
-except Exception as e:
-    app.logger.error(f"Ошибка при работе с БД: {e}")
-    raise
-
-
 @app.route('/')
 def index():
-    """Обрабатывает GET-запросы к корневому URL.
-
-    Returns:
-        str: HTML-страница из шаблона index.html
-    """
     return render_template('index.html')
 
 
 @app.route('/urls', methods=['POST'])
 def add_url():
-    """Обрабатывает добавление нового URL.
+    raw_url = request.form.get('url')
 
-    Steps:
-    1. Валидирует введенный URL
-    2. Нормализует URL (убирает лишние части)
-    3. Проверяет существование URL в БД
-    4. Сохраняет новый URL или перенаправляет на существующий
-
-    Returns:
-        Response: Редирект на страницу URL или отображение формы с ошибками
-    """
-    raw_url = request.form.get(
-        'url')  # Получаем URL из формы
-
-    # Валидация URL
     if not raw_url:
         flash('URL обязателен', 'danger')
         return render_template('index.html', raw_url=raw_url), 422
@@ -83,107 +51,88 @@ def add_url():
         return render_template('index.html', raw_url=raw_url), 422
 
     try:
-        parsed = urlparse(raw_url)  # Разбираем URL на компоненты
-        # Нормализуем URL
+        parsed = urlparse(raw_url)
         normalized_url = f"{parsed.scheme}://{parsed.netloc}"
     except Exception as e:
         logging.error(f"Ошибка парсинга URL {raw_url}: {e}")
         flash('Некорректный URL', 'danger')
         return render_template('index.html', raw_url=raw_url), 422
 
-    # Проверка существования URL в БД
-    existing_url = repo.find_url(normalized_url)
-    if existing_url:
-        flash('Страница уже существует', 'info')
-        return redirect(url_for('show_url', id=existing_url['id']))
+    with psycopg2.connect(os.getenv('DATABASE_URL')) as conn:
+        repo = UrlRepository(conn)
+        existing_url = repo.find_url(normalized_url)
+        if existing_url:
+            flash('Страница уже существует', 'info')
+            return redirect(url_for('show_url', id=existing_url['id']))
 
-    # Сохранение нового URL
-    new_url_id = repo.save({'name': normalized_url})
-    flash('Страница успешно добавлена', 'success')
-    return redirect(url_for('show_url', id=new_url_id))
+        new_url_id = repo.save({'name': normalized_url})
+        flash('Страница успешно добавлена', 'success')
+        return redirect(url_for('show_url', id=new_url_id))
 
 
 @app.route('/urls')
-def urls_show() -> str:
-    """Отображает список всех URL с их последними проверками.
+def urls_show():
+    with psycopg2.connect(os.getenv('DATABASE_URL')) as conn:
+        repo = UrlRepository(conn)
+        urls = repo.get_content()
+        latest_checks = repo.get_latest_checks()
 
-    Returns:
-        str: HTML-страница со списком URL из шаблона urls.html
-    """
-    urls = repo.get_content()  # Получаем все URL из БД
-    latest_checks = repo.get_latest_checks()  # Получаем последние проверки
+        urls_with_checks = []
+        for url in urls:
+            check = latest_checks.get(url['id'])
+            urls_with_checks.append((url, check))
 
-    # Собираем данные для отображения
-    urls_with_checks = []
-    for url in urls:
-        check = latest_checks.get(url['id'])
-        urls_with_checks.append((url, check))
-
-    return render_template('urls.html', urls_with_checks=urls_with_checks)
+        return render_template('urls.html', urls_with_checks=urls_with_checks)
 
 
 @app.route('/url/<int:id>')
-def show_url(id: int):
-    """Отображает детальную информацию о конкретном URL.
+def show_url(id):
+    with psycopg2.connect(os.getenv('DATABASE_URL')) as conn:
+        repo = UrlRepository(conn)
+        url, checks = repo.get_url_by_id(id)
 
-    Args:
-        id (int): Идентификатор URL в базе данных
+        if url is None:
+            flash('URL не найден', 'danger')
+            return redirect(url_for('urls_show'))
 
-    Returns:
-        Response: Страница с информацией о URL или редирект при ошибке
-    """
-    url, checks = repo.get_url_by_id(id)
-
-    if url is None:
-        flash('URL не найден', 'danger')
-        return redirect(url_for('urls_show'))
-
-    return render_template('url.html', url=url, checks=checks)
+        return render_template('url.html', url=url, checks=checks)
 
 
 @app.post('/urls/<int:id>/checks')
-def check_url(id: int):
-    """Выполняет проверку указанного URL и сохраняет результаты.
+def check_url(id):
+    with psycopg2.connect(os.getenv('DATABASE_URL')) as conn:
+        repo = UrlRepository(conn)
+        url_data = repo.get_url_by_id(id)
 
-    Args:
-        id (int): Идентификатор URL для проверки
+        if not url_data or not url_data[0]:
+            flash('URL не найден', 'danger')
+            return redirect(url_for('urls_show'))
 
-    Returns:
-        Response: Редирект обратно на страницу URL
-    """
-    url_data = repo.get_url_by_id(id)
-    if not url_data or not url_data[0]:
-        flash('URL не найден', 'danger')
-        return redirect(url_for('urls_show'))
+        url = url_data[0]
 
-    url = url_data[0]
+        try:
+            response = requests.get(url['name'], timeout=5)
+            response.raise_for_status()
 
-    try:
-        # Выполняем HTTP-запрос
-        response = requests.get(url['name'], timeout=5)
-        response.raise_for_status()  # Проверяем на ошибки HTTP
+            soup = BeautifulSoup(response.text, 'html.parser')
+            check_data = {
+                'status_code': response.status_code,
+                'h1': soup.h1.text.strip() if soup.h1 else '',
+                'title': soup.title.text.strip() if soup.title else '',
+                'description': soup.find('meta', {'name': 'description'})['content'].strip()
+                if soup.find('meta', {'name': 'description'}) else ''
+            }
 
-        # Парсим HTML-контент
-        soup = BeautifulSoup(response.text, 'html.parser')
-        check_data = {
-            'status_code': response.status_code,
-            'h1': soup.h1.text.strip() if soup.h1 else '',
-            'title': soup.title.text.strip() if soup.title else '',
-            'description': soup.find('meta', {'name': 'description'})['content'].strip()
-            if soup.find('meta', {'name': 'description'}) else ''
-        }
+            repo.save_check(id, check_data)
+            flash('Страница успешно проверена', 'success')
+        except requests.RequestException as e:
+            logging.error(f"Ошибка HTTP при проверке URL {url['name']}: {e}")
+            flash('Не удалось получить доступ к странице', 'danger')
+        except Exception as e:
+            logging.error(f"Ошибка при проверке URL: {e}")
+            flash('Произошла ошибка при проверке', 'danger')
 
-        # Сохраняем результаты проверки
-        repo.save_check(id, check_data)
-        flash('Страница успешно проверена', 'success')
-    except requests.RequestException as e:
-        logging.error(f"Ошибка HTTP при проверке URL {url['name']}: {e}")
-        flash('Не удалось получить доступ к странице', 'danger')
-    except Exception as e:
-        logging.error(f"Ошибка при проверке URL: {e}")
-        flash('Произошла ошибка при проверке', 'danger')
-
-    return redirect(url_for('show_url', id=id))
+        return redirect(url_for('show_url', id=id))
 
 
 if __name__ == '__main__':
