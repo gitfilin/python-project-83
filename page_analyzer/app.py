@@ -63,11 +63,11 @@ def add_url():
         existing_url = repo.find_url(normalized_url)
         if existing_url:
             flash('Страница уже существует', 'info')
-            return redirect(url_for('show_url', id=existing_url['id']))
+            return redirect(url_for('urls_show', id=existing_url['id']))
 
         new_url_id = repo.save({'name': normalized_url})
         flash('Страница успешно добавлена', 'success')
-        return redirect(url_for('show_url', id=new_url_id))
+        return redirect(url_for('urls_show', id=new_url_id))
 
 
 @app.route('/urls')
@@ -85,7 +85,7 @@ def urls_show():
         return render_template('urls.html', urls_with_checks=urls_with_checks)
 
 
-@app.route('/url/<int:id>')
+@app.route('/urls/<int:id>')
 def show_url(id):
     with psycopg2.connect(os.getenv('DATABASE_URL')) as conn:
         repo = UrlRepository(conn)
@@ -127,7 +127,7 @@ def check_url(id):
             flash('Страница успешно проверена', 'success')
         except requests.RequestException as e:
             logging.error(f"Ошибка HTTP при проверке URL {url['name']}: {e}")
-            flash('Не удалось получить доступ к странице', 'danger')
+            flash('Произошла ошибка при проверке', 'danger')
         except Exception as e:
             logging.error(f"Ошибка при проверке URL: {e}")
             flash('Произошла ошибка при проверке', 'danger')
