@@ -8,6 +8,7 @@ import requests
 import os
 from dotenv import load_dotenv
 from page_analyzer.url_repository import UrlRepository
+from page_analyzer.parser import get_data
 
 load_dotenv()
 
@@ -80,39 +81,45 @@ def url_details(id):
         return render_template('url.html', url=url, checks=checks)
 
 
-@app.route('/urls/<int:id>/checks', methods=['POST'])
-def create_check(id):
+@app.post('/urls/<int:id>/checks')
+def url_checks(id):
     with psycopg2.connect(os.getenv('DATABASE_URL')) as conn:
         repo = UrlRepository(conn)
-        url_data = repo.get_url_by_id(id)
+        url = repo.get_url_by_id(id)
 
-        if not url_data or not url_data[0]:
+        if not url or not url[0]:
             flash('URL не найден', 'danger')
             return redirect(url_for('urls'))
 
-        url = url_data[0]
-
         try:
-            response = requests.get(url['name'], timeout=5)
+            # Основная проверка URL
+            response = requests.get(url[0]['name'], timeout=5)
             response.raise_for_status()
 
-            soup = BeautifulSoup(response.text, 'html.parser')
+            # Получаем и подготавливаем данные
+            parsed_data = get_data(response.text)
             check_data = {
+                'url_id': id,
                 'status_code': response.status_code,
-                'h1': soup.h1.text.strip() if soup.h1 else '',
-                'title': soup.title.text.strip() if soup.title else '',
-                'description': soup.find('meta', {'name': 'description'})['content'].strip()
-                if soup.find('meta', {'name': 'description'}) else ''
+                'title': parsed_data.get('title', ''),
+                'h1': parsed_data.get('h1', ''),
+                'description': parsed_data.get('description', '')
             }
 
+            # Сохраняем в БД
             repo.save_check(id, check_data)
             flash('Страница успешно проверена', 'success')
-        except requests.RequestException as e:
+
+        except requests.Timeout:
+            flash('Превышено время ожидания ответа', 'danger')
+        except requests.HTTPError as e:
+            flash(f'Ошибка HTTP: {e.response.status_code}', 'danger')
+        except requests.RequestException:
             flash('Произошла ошибка при проверке', 'danger')
         except Exception as e:
-            flash('Произошла ошибка при проверке', 'danger')
+            app.logger.error(f'Check failed: {str(e)}')
+            flash('Внутренняя ошибка сервера', 'danger')
 
-        # Редирект на страницу URL
         return redirect(url_for('url_details', id=id))
 
 
