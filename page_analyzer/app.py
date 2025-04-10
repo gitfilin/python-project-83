@@ -49,7 +49,7 @@ def add_url():
 
         new_url_id = repo.save({'name': normalized_url})
         flash('Страница успешно добавлена', 'success')
-        return redirect(url_for('url_details', id=new_url_id))
+        return redirect(url_for('url_details', id=new_url_id)), 200
 
 
 @app.route('/urls')
