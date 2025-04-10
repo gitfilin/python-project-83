@@ -35,11 +35,15 @@ logging.basicConfig(
 
 # Подключение к БД
 try:
-    conn = psycopg2.connect(os.getenv('DATABASE_URL'))
-    repo = UrlRepository(conn)
-    app.logger.info("Подключение к БД установлено")
+    # Создаем соединение внутри контекстного менеджера
+    with psycopg2.connect(os.getenv('DATABASE_URL')) as conn:
+        repo = UrlRepository(conn)
+        urls = repo.get_content()
 except psycopg2.OperationalError as e:
     app.logger.error(f"Ошибка подключения к БД: {e}")
+    raise
+except Exception as e:
+    app.logger.error(f"Ошибка при работе с БД: {e}")
     raise
 
 
