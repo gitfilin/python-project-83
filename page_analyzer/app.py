@@ -3,9 +3,11 @@ import validators
 from urllib.parse import urlparse
 import psycopg2
 from psycopg2.extras import DictCursor
-from page_analyzer.url_repository import UrlRepository
+from bs4 import BeautifulSoup
+import requests
 import os
 from dotenv import load_dotenv
+from page_analyzer.url_repository import UrlRepository
 
 load_dotenv()
 
@@ -106,10 +108,11 @@ def create_check(id):
             repo.save_check(id, check_data)
             flash('Страница успешно проверена', 'success')
         except requests.RequestException as e:
-            flash('Не удалось получить доступ к странице', 'danger')
+            flash('Произошла ошибка при проверке', 'danger')
         except Exception as e:
             flash('Произошла ошибка при проверке', 'danger')
 
+        # Редирект на страницу URL
         return redirect(url_for('url_details', id=id))
 
 
