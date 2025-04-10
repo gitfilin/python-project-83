@@ -41,12 +41,20 @@ def index():
 @app.route('/urls', methods=['POST'])
 def add_url():
     raw_url = request.form.get('url')
-
+    
     if not raw_url:
         flash('URL обязателен', 'danger')
         return render_template('index.html', raw_url=raw_url), 422
 
     if not validators.url(raw_url) or len(raw_url) > 255:
+        flash('Некорректный URL', 'danger')
+        return render_template('index.html', raw_url=raw_url), 422
+
+    try:
+        parsed = urlparse(raw_url)
+        normalized_url = f"{parsed.scheme}://{parsed.netloc}"
+    except Exception as e:
+        logging.error(f"Ошибка парсинга URL {raw_url}: {e}")
         flash('Некорректный URL', 'danger')
         return render_template('index.html', raw_url=raw_url), 422
 
