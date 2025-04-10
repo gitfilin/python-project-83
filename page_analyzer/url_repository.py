@@ -19,15 +19,22 @@ class UrlRepository:
                 VALUES (%s) 
                 RETURNING id
             """, (url['name'],))
+            self.conn.commit()
             return cur.fetchone()[0]
 
     def get_content(self):
         with self.conn.cursor(cursor_factory=DictCursor) as cur:
             cur.execute("""
-                SELECT id, name, 
-                       TO_CHAR(created_at, 'YYYY-MM-DD') as created_at 
-                FROM urls 
-                ORDER BY id DESC
+                SELECT urls.id, urls.name, 
+                       TO_CHAR(urls.created_at, 'YYYY-MM-DD') as created_at,
+                       url_checks.status_code
+                FROM urls
+                LEFT JOIN (
+                    SELECT DISTINCT ON (url_id) url_id, status_code
+                    FROM url_checks
+                    ORDER BY url_id, created_at DESC
+                ) url_checks ON urls.id = url_checks.url_id
+                ORDER BY urls.id DESC
             """)
             return [dict(row) for row in cur]
 
@@ -51,7 +58,9 @@ class UrlRepository:
                 return None, None
 
             cur.execute("""
-                SELECT * FROM url_checks 
+                SELECT id, status_code, h1, title, description,
+                       TO_CHAR(created_at, 'YYYY-MM-DD') as created_at
+                FROM url_checks 
                 WHERE url_id = %s 
                 ORDER BY created_at DESC
             """, (id,))
@@ -65,6 +74,7 @@ class UrlRepository:
                 INSERT INTO url_checks 
                 (url_id, status_code, h1, title, description) 
                 VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
             """, (
                 url_id,
                 check_data['status_code'],
@@ -72,3 +82,5 @@ class UrlRepository:
                 check_data.get('title', '')[:255],
                 check_data.get('description', '')[:255]
             ))
+            self.conn.commit()
+            return cur.fetchone()[0]
