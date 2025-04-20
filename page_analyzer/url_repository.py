@@ -4,7 +4,13 @@ from psycopg2.extras import DictCursor
 
 class UrlRepository:
     def __init__(self, conn):
-        self.conn = conn
+        self.conn = conn # Сохраняем строку подключения
+
+
+    def get_connection(self):
+            """Создаёт и возвращает новое подключение к БД"""
+            return psycopg2.connect(self.conn)  # Используем сохранённую строку
+
 
     def find_url(self, url):
         with self.conn.cursor(cursor_factory=DictCursor) as cur:

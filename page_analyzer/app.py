@@ -2,8 +2,6 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 import validators
 from urllib.parse import urlparse
 import psycopg2
-from psycopg2.extras import DictCursor
-from bs4 import BeautifulSoup
 import requests
 import os
 from dotenv import load_dotenv
@@ -12,8 +10,21 @@ from page_analyzer.parser import get_data
 
 load_dotenv()
 
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config['DATABASE_URL'] = os.getenv('DATABASE_URL')
+
+db = UrlRepository(app.config['DATABASE_URL'])
+
+
+# Проверка
+try:
+    conn = db.get_connection()
+    print("✅ Подключение успешно!")
+    conn.close()
+except psycopg2.Error as e:
+    print(f"❌ Ошибка подключения: {e}")
 
 
 @app.route('/')
@@ -81,44 +92,72 @@ def url_details(id):
         return render_template('url.html', url=url, checks=checks)
 
 
-@app.post('/urls/<int:id>/checks')
-def url_checks(id):
+@app.route('/urls/<int:id>/checks', methods=['POST'])
+def create_check(id):
     with psycopg2.connect(os.getenv('DATABASE_URL')) as conn:
         repo = UrlRepository(conn)
-        url = repo.get_url_by_id(id)
+        url_data = repo.get_url_by_id(id)
 
-        if not url or not url[0]:
+        if not url_data or not url_data[0]:
             flash('URL не найден', 'danger')
             return redirect(url_for('urls'))
 
+        url = url_data[0]
+
         try:
-            # Основная проверка URL
-            response = requests.get(url[0]['name'], timeout=5)
+
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            response = requests.get(url['name'],
+                                    timeout=10,
+                                    headers=headers,
+                                    allow_redirects=True)
             response.raise_for_status()
 
-            # Получаем и подготавливаем данные
-            parsed_data = get_data(response.text)
+            # Проверяем content-type перед парсингом
+            content_type = response.headers.get('content-type', '')
+            if 'text/html' not in content_type:
+                flash('Страница не является HTML-документом', 'warning')
+                return redirect(url_for('url_details', id=id))
+
+            soup = get_data(response.text, 'html.parser')
+
+            def safe_extract(element, attr=None):
+                if not element:
+                    return ''
+                try:
+                    if attr:
+                        return element.get(attr, '').strip()
+                    return element.get_text().strip()
+                except Exception:
+                    return ''
+
+            h1 = safe_extract(soup.find('h1'))
+            title = safe_extract(soup.find('title'))
+            description = safe_extract(
+                soup.find('meta', attrs={'name': 'description'}),
+                'content'
+            )
+
             check_data = {
-                'url_id': id,
                 'status_code': response.status_code,
-                'title': parsed_data.get('title', ''),
-                'h1': parsed_data.get('h1', ''),
-                'description': parsed_data.get('description', '')
+                'h1': h1,
+                'title': title,
+                'description': description
             }
 
-            # Сохраняем в БД
             repo.save_check(id, check_data)
             flash('Страница успешно проверена', 'success')
 
-        except requests.Timeout:
-            flash('Превышено время ожидания ответа', 'danger')
-        except requests.HTTPError as e:
-            flash(f'Ошибка HTTP: {e.response.status_code}', 'danger')
-        except requests.RequestException:
-            flash('Произошла ошибка при проверке', 'danger')
+        except requests.exceptions.Timeout:
+            flash('Проверка заняла слишком много времени', 'danger')
+        except requests.exceptions.HTTPError as e:
+            flash(
+                f'Ошибка HTTP при проверке: {e.response.status_code}', 'danger')
+        except requests.exceptions.RequestException as e:
+            flash(f'Ошибка при проверке: {str(e)}', 'danger')
         except Exception as e:
-            app.logger.error(f'Check failed: {str(e)}')
-            flash('Внутренняя ошибка сервера', 'danger')
+            app.logger.error(f'Unexpected error: {str(e)}')
+            flash('Произошла непредвиденная ошибка при проверке', 'danger')
 
         return redirect(url_for('url_details', id=id))
 
