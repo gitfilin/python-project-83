@@ -1,6 +1,9 @@
-{% extends 'index.html' %}
+{% extends 'base.html' %}
 
-{% block main %}
-<h1>Страница не найдена</h1>
-<p><a href="/">На главную</a></p>
+
+{% block title %}Page Not Found{% endblock %}
+{% block body %}
+  <h1>Page Not Found</h1>
+  <h3>То, что вы искали, просто не существует.</h3>
+  <p>Для продолжения перейдите <a href="{{ url_for('index') }}">на главную страницу сайта</a></p>
 {% endblock %}

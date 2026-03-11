@@ -1,14 +1,10 @@
 from urllib.parse import urlparse
 
 
-def normalize(url: str) -> str:
-    """Нормализация URL - извлечение схемы и домена.
-
-    Args:
-        url: URL для нормализации.
-
-    Returns:
-        str: Нормализованный URL (схема://домен).
-    """
-    data = urlparse(url)
-    return f'{data.scheme}://{data.netloc}'
+def normalize_url(url):
+    """Приводим URL к единому виду"""
+    parsed = urlparse(url)
+    if not parsed.scheme:
+        url = 'https://' + url
+        parsed = urlparse(url)
+    return parsed.netloc or parsed.path
