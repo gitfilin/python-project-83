@@ -75,7 +75,7 @@ def urls_create():
 
 @app.route('/urls')
 def urls_list():
-    """Показываем все добавленные URL (новые — первыми) и их последние проверки"""
+    """Показываем все URL и их последние проверки"""
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=NamedTupleCursor)
 
