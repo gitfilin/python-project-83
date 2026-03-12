@@ -29,7 +29,7 @@ def urls_create():
 
     if not validators.url(raw_url) or len(raw_url) > 255:
         flash('Некорректный URL-адрес', 'danger')
-        return redirect(url_for('index'))
+        return render_template('index.html', raw_url=raw_url), 422
 
     name = normalize_url(raw_url)
 
@@ -172,6 +172,7 @@ def urls_check(id):
             target_url = f'http://{target_url}'
 
         response = requests.get(target_url)
+        response.raise_for_status()
         status_code = response.status_code
 
         soup = BeautifulSoup(response.text, 'html.parser')
