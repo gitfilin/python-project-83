@@ -12,7 +12,23 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
-      - name: Run Qlty
-        uses: qltysh/qlty-action@v1
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
-          token: ${{ secrets.QLTY_TOKEN }}
+          python-version: '3.11'
+      
+      - name: Install Qlty CLI
+        run: |
+          curl -sSfL https://qlty.sh/install.sh | bash
+      
+      - name: Run Qlty Check
+        run: |
+          ~/.qlty/bin/qlty check
+        env:
+          QLTY_TOKEN: ${{ secrets.QLTY_TOKEN }}
+      
+      - name: Publish Coverage
+        run: |
+          ~/.qlty/bin/qlty coverage publish
+        env:
+          QLTY_COVERAGE_TOKEN: ${{ secrets.QLTY_COVERAGE_TOKEN }}
