@@ -1,3 +1,5 @@
+[![Maintainability](https://qlty.sh/badges/gitfilin/python-project-83/maintainability.svg)](https://qlty.sh)
+[![Test Coverage](https://qlty.sh/badges/gitfilin/python-project-83/coverage.svg)](https://qlty.sh)
 ### Hexlet tests and linter status:
 [![Actions Status](https://github.com/gitfilin/python-project-83/actions/workflows/hexlet-check.yml/badge.svg)](https://github.com/gitfilin/python-project-83/actions)
 # Page Analyzer
